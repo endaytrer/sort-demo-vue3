@@ -1,21 +1,23 @@
 <template>
-  <div
-    @isReading="highlight"
-    class="data-bar"
-    :class="{ highlighted: isHighlighting }"
-    :style="{
-      width: `${width}%`,
-      height: `${value}%`,
-      transform: `translateX(calc(${index * 100}% - 2px))`,
-      transition: (() => {
-        if (delay && animation)
-          return `transform ${delay}ms ease-in-out, filter ${
-            delay / 2
-          }ms ease-out, height ${delay / 2}ms ease-in-out`;
-        else return undefined;
-      })(),
-    }"
-  ></div>
+  <el-tooltip :content="value.toFixed(2)" effect="light"
+    ><div
+      @isReading="highlight"
+      class="data-bar"
+      :class="{ highlighted: isHighlighting }"
+      :style="{
+        width: `${width}%`,
+        height: `${value}%`,
+        transform: `translateX(calc(${index * 100}% - 2px))`,
+        transition: (() => {
+          if (delay && animation)
+            return `transform ${delay}ms ease-in-out, filter ${
+              delay / 2
+            }ms ease-out, height ${delay / 2}ms ease-in-out`;
+          else return undefined;
+        })(),
+      }"
+    ></div
+  ></el-tooltip>
 </template>
 <script lang="ts">
 import { defineComponent } from "vue";

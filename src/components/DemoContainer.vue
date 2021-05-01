@@ -30,24 +30,33 @@
     </el-descriptions>
     <el-collapse class="information" v-if="!isSorting" v-model="expanded">
       <el-collapse-item title="设置">
-        <el-form v-model="settings" label-width="100px">
-          <el-form-item label="自定义数组">
+        <el-form
+          :model="settings"
+          label-width="100px"
+          :rules="rules"
+          ref="settings"
+        >
+          <el-form-item label="自定义数组" prop="customArray">
             <el-switch v-model="settings.customArray"></el-switch>
           </el-form-item>
-          <el-form-item label="数组" v-if="settings.customArray">
+          <el-form-item label="数组" v-if="settings.customArray" prop="array">
             <el-input
               v-model="settings.array"
               placeholder="数据由半角逗号隔开"
             ></el-input>
           </el-form-item>
-          <el-form-item label="数组大小" v-if="!settings.customArray">
-            <el-input v-model="settings.size" type="number"></el-input>
+          <el-form-item
+            label="数组大小"
+            v-if="!settings.customArray"
+            prop="size"
+          >
+            <el-input v-model.number="settings.size" type="number"></el-input>
           </el-form-item>
-          <el-form-item label="动画">
+          <el-form-item label="动画" prop="animation">
             <el-switch v-model="settings.animation"></el-switch>
           </el-form-item>
-          <el-form-item label="延时">
-            <el-input v-model="settings.delay" type="number"></el-input>
+          <el-form-item label="延时/ms" prop="delay">
+            <el-input v-model.number="settings.delay" type="number"></el-input>
           </el-form-item>
           <el-form-item>
             <el-button type="primary" round @click="submit">保存</el-button>
@@ -72,6 +81,7 @@ import { defineComponent } from "vue";
 import DataBar from "./DataBar.vue";
 import SortingMethod from "../SortingMethods";
 import { bubbleSort } from "../SortingMethods";
+import { ElNotification } from "element-plus";
 export default defineComponent({
   name: "DemoContainer",
   components: {
@@ -93,6 +103,63 @@ export default defineComponent({
       animation: true,
       size: 0,
       delay: 0,
+    },
+    rules: {
+      array: [
+        {
+          validator: (
+            rule: { field: string },
+            value: string,
+            callback: (para?: Error) => void
+          ) => {
+            if (
+              !/^\d+(\.\d*)?? *?(, *?(\d+(\.\d*)?) *?){0,599}?$/.test(value)
+            ) {
+              callback(new Error(`非法格式的字符串`));
+            } else {
+              callback();
+            }
+          },
+          trigger: "blur",
+        },
+      ],
+      size: [
+        {
+          validator: (
+            rule :{ field: string },
+            value: string,
+            callback: (para?: Error) => void
+          ) => {
+            if (!/^\d+$/.test(value)) {
+              callback(new Error("请输入非负整数"));
+            } else if (
+              Number.parseInt(value) < 0 ||
+              Number.parseInt(value) > 600
+            ) {
+              callback(new Error("数组长度必须在[0, 600]之间"));
+            } else {
+              callback();
+            }
+          },
+          triggger: "blur",
+        },
+      ],
+      delay: [
+        {
+          validator: (
+            rule: { field: string },
+            value: string,
+            callback: (para?: Error) => void
+          ) => {
+            if (!/^\d+$/.test(value)) {
+              callback(new Error("请输入非负整数"));
+            } else {
+              callback();
+            }
+          },
+          triggger: "blur",
+        },
+      ],
     },
     sortMethod: bubbleSort.sort,
     dataTags: [""],
@@ -190,6 +257,7 @@ export default defineComponent({
       this.isSorting = true;
       this.totalVisitTime = 0;
       this.totalSwapTime = 0;
+      const startDate = new Date();
       try {
         await this.sortMethod(
           this.bars.length,
@@ -197,6 +265,34 @@ export default defineComponent({
           this.swap,
           this.assign
         );
+        const endDate = new Date();
+        const deltaTime = endDate.getTime() - startDate.getTime();
+        ElNotification({
+          title: `${this.sortName} 排序完成`,
+          message: `用时: ${
+            Math.floor(deltaTime / 60000)
+              ? Math.floor(deltaTime / 60000) + "min "
+              : ""
+          }${Math.floor((deltaTime % 60000) / 1000)}s ${Math.floor(
+            deltaTime % 1000
+          )}ms`,
+          type: "success",
+          duration: 0,
+        });
+      } catch (e) {
+        const endDate = new Date();
+        const deltaTime = endDate.getTime() - startDate.getTime();
+        ElNotification({
+          title: `${this.sortName} 排序停止`,
+          message: `用时: ${
+            Math.floor(deltaTime / 60000)
+              ? Math.floor(deltaTime / 60000) + "min "
+              : ""
+          }${Math.floor((deltaTime % 60000) / 1000)}s ${Math.floor(
+            deltaTime % 1000
+          )}ms`,
+          type: "warning",
+        });
       } finally {
         this.isSorting = false;
       }
@@ -218,33 +314,61 @@ export default defineComponent({
     abort() {
       this.isSorting = false;
     },
-    submit() {
-      if (this.settings.customArray) {
-        this.nowPos = [];
-        this.bars = [];
-        const array: number[] = [];
-        let max = 0;
-        this.settings.array
-          .split(",")
-          .forEach((element: string, index: number) => {
-            array.push(Number.parseFloat(element));
-            if (Number.parseFloat(element) > max) {
-              max = Number.parseFloat(element);
+    async submit() {
+      const form = this.$refs.settings as {
+        validate: (func: (valid: boolean) => void) => void;
+      };
+      try {
+        await new Promise<void>((resolve, reject) => {
+          form.validate((valid: boolean) => {
+            if (valid) {
+              resolve();
+            } else {
+              reject(new Error("不合法的输入!"));
             }
-            this.nowPos.push(index);
           });
-        array.forEach((element: number, index: number) => {
-          this.bars.push({ index, value: (element / max) * 100, visitTime: 0 });
         });
-      } else {
-        if (this.size !== this.settings.size) {
-          this.size = this.settings.size;
-          this.reset();
+        if (this.settings.customArray) {
+          this.nowPos = [];
+          this.bars = [];
+          const array: number[] = [];
+          let max = 0;
+          this.settings.array
+            .split(",")
+            .forEach((element: string, index: number) => {
+              array.push(Number.parseFloat(element));
+              if (Number.parseFloat(element) > max) {
+                max = Number.parseFloat(element);
+              }
+              this.nowPos.push(index);
+            });
+          array.forEach((element: number, index: number) => {
+            this.bars.push({
+              index,
+              value: (element / max) * 100,
+              visitTime: 0,
+            });
+          });
+        } else {
+          if (this.size !== this.settings.size) {
+            this.size = this.settings.size;
+            this.reset();
+          }
         }
+        this.animation = this.settings.animation;
+        this.delay = this.settings.delay;
+        this.expanded = [];
+        ElNotification({
+          title: "保存成功",
+          type: "success",
+        });
+      } catch (e) {
+        ElNotification({
+          title: "保存失败",
+          message: e.message,
+          type: "warning",
+        });
       }
-      this.animation = this.settings.animation;
-      this.delay = this.settings.delay;
-      this.expanded = [];
     },
   },
 });
